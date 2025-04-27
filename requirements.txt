@@ -1,0 +1,9 @@
+tensorflow
+opencv-python
+face-recognition
+numpy
+pandas
+dlib
+flask
+matplotlib
+jupyter
