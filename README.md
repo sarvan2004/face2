@@ -1,6 +1,7 @@
 # 🎯 Face Detection and Dataset Creation from Video Footage
 
 Extract and organize student faces from a classroom video by detecting faces **inside a defined ROI** using **YOLOv11-face** and **DeepFace (ArcFace)**.
+![preview](https://github.com/yashbisht077/DeepTrack/blob/main/Image.png?raw=true)
 
 ---
 
