@@ -145,7 +145,7 @@ Anurag Singh,2025-07-12 09:44:12
 
 **Shankar Singh**  
 📍 BTech CSE AIML @ GEHU Bhimtal  
-📧 [shankarbisht1224@gmail.com@example.com]
+📧 [shankarbisht1224@gmail.com]
 
 ---
 
