@@ -1,5 +1,6 @@
 # 🎓 Face Recognition Attendance System
 
+<<<<<<< HEAD
 A robust, bilingual, real-time face recognition-based attendance system using YOLOv8, DeepFace, TensorFlow, and OpenCV. This project supports both **real-time webcam-based** tracking and **video file-based** pipelines with Region of Interest (ROI), logging, frame skipping, and CSV-based attendance.
 ![preview](https://github.com/yashbisht077/DeepTrack/blob/main/Image.png?raw=true)
 
