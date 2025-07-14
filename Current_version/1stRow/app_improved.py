@@ -5,7 +5,7 @@ import os
 import pandas as pd
 from ultralytics import YOLO
 from deepface import DeepFace
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import time
 
@@ -98,24 +98,75 @@ face_recognition_history = {}
 frame_count = 0
 
 def mark_attendance(name, face_crop):
-    """Mark attendance for a recognized person"""
-    global attendance_today, cropped_faces_display
+    """Mark attendance IN or OUT for a recognized person"""
+    print(f"DEBUG: Attempting to mark attendance for {name}")
+    global cropped_faces_display
     current_time = datetime.now().strftime("%H:%M:%S")
+    now = datetime.now()
+    today_date = now.strftime("%Y-%m-%d")
 
-    if name not in attendance_today:
-        attendance_today.add(name)
-        new_entry = pd.DataFrame({"Name": [name], "Date": [today_date], "Time": [current_time]})
+    # Ensure attendance file has correct columns if it does not exist or is malformed
+    required_columns = ["Name", "Date", "Time", "Status"]
+    recreate_file = False
+    if not os.path.exists(attendance_file):
+        recreate_file = True
+    else:
+        try:
+            df = pd.read_csv(attendance_file)
+            if list(df.columns) != required_columns:
+                print(f"DEBUG: CSV columns are {list(df.columns)}, expected {required_columns}. Recreating file.")
+                recreate_file = True
+        except Exception as e:
+            print(f"DEBUG: Error reading CSV: {e}. Recreating file.")
+            recreate_file = True
+    if recreate_file:
+        pd.DataFrame({col: [] for col in required_columns}).to_csv(attendance_file, index=False)
+        print(f"DEBUG: Created new attendance file with columns {required_columns}")
 
-        write_header = not os.path.exists(attendance_file) or os.path.getsize(attendance_file) == 0
-        new_entry.to_csv(attendance_file, mode="a", header=write_header, index=False)
+    # Load today's attendance
+    df = pd.read_csv(attendance_file)
+    today_df = df[df["Date"] == today_date]
+    person_entries = today_df[today_df["Name"] == name]
 
-        print(f"✔️ Attendance marked for {name}")
-
+    # If never marked in today, or last status is 'out', mark as 'in'
+    if person_entries.empty or (person_entries["Status"] == "out").all():
+        new_entry = pd.DataFrame({
+            "Name": [name],
+            "Date": [today_date],
+            "Time": [current_time],
+            "Status": ["in"]
+        })
+        new_entry.to_csv(attendance_file, mode="a", header=False, index=False)
+        print(f"✔️ Attendance IN marked for {name} at {today_date} {current_time}")
         cropped_faces_display[name] = {
             "image": face_crop,
             "time": time.time()
         }
         return True
+
+    # If already marked in, check if 10 seconds (for quick test) has passed since last 'in'
+    in_entries = person_entries[person_entries["Status"] == "in"]
+    if not in_entries.empty:
+        last_in = in_entries.iloc[-1]
+        last_in_time = datetime.strptime(f"{last_in['Date']} {last_in['Time']}", "%Y-%m-%d %H:%M:%S")
+        print(f"DEBUG: last_in_time={last_in_time}, now={now}, diff={(now - last_in_time)}")
+        # For production, use: timedelta(hours=1)
+        if (now - last_in_time) >= timedelta(seconds=10):  # <-- Change to hours=1 for real use
+            new_entry = pd.DataFrame({
+                "Name": [name],
+                "Date": [today_date],
+                "Time": [current_time],
+                "Status": ["out"]
+            })
+            new_entry.to_csv(attendance_file, mode="a", header=False, index=False)
+            print(f"✔️ Attendance OUT marked for {name} at {today_date} {current_time}")
+            cropped_faces_display[name] = {
+                "image": face_crop,
+                "time": time.time()
+            }
+            return True
+
+    # Otherwise, do nothing
     return False
 
 def is_inside_polygon(x, y, polygon):
@@ -148,6 +199,11 @@ def get_face_quality_score(face_crop):
         logging.error(f"Error calculating face quality: {e}")
         return 0
 
+def get_best_match_from_deepface_result(result):
+    if isinstance(result, pd.DataFrame) and not result.empty:  # type: ignore
+        return result.iloc[0]  # type: ignore
+    return None
+
 def recognize_face_with_confidence(face_crop, face_id_key):
     """Recognize face with comprehensive confidence checks"""
     try:
@@ -163,18 +219,22 @@ def recognize_face_with_confidence(face_crop, face_id_key):
             enforce_detection=False
         )
 
-        if isinstance(verification, list) and len(verification) > 0 and not verification[0].empty:
-            best_match = verification[0].iloc[0]
-            distance = best_match["distance"]
-            person_name = os.path.basename(best_match["identity"]).split(".")[0]
-            
-            # Check if distance is within acceptable range
-            if distance <= face_config["max_distance"]:
-                confidence = 1.0 - (distance / face_config["max_distance"])
-                status = f"Distance: {distance:.3f}, Quality: {quality_score:.2f}"
-                return person_name, confidence, status
+        if (
+            isinstance(verification, list) and
+            len(verification) > 0
+        ):
+            best_match = get_best_match_from_deepface_result(verification[0])
+            if best_match is not None:
+                distance = best_match["distance"]
+                person_name = os.path.basename(best_match["identity"]).split(".")[0]
+                if distance <= face_config["max_distance"]:
+                    confidence = 1.0 - (distance / face_config["max_distance"])
+                    status = f"Distance: {distance:.3f}, Quality: {quality_score:.2f}"
+                    return person_name, confidence, status
+                else:
+                    return None, 0, f"Distance too high: {distance:.3f}"
             else:
-                return None, 0, f"Distance too high: {distance:.3f}"
+                return None, 0, "No match found"
         else:
             return None, 0, "No match found"
             
@@ -304,16 +364,14 @@ while cap.isOpened():
                     # Check for consistent recognition
                     consistent_name, consistent_confidence = get_consistent_recognition(face_id_key)
                     
+                    # For testing: mark attendance for any match (tentative or confident)
+                    mark_attendance(person_name, face_crop)
+                    # You can comment out the above line for production use
                     if consistent_name and consistent_confidence > face_config["high_confidence_threshold"]:
                         if face_id_key not in face_embeddings_cache:
                             face_embeddings_cache.add(face_id_key)
-                            mark_attendance(consistent_name, face_crop)
-                            faces_recognized += 1
-                        
-                        # Display confident recognition
                         display_face_info(frame, x1, y1, consistent_name, consistent_confidence, status, True)
                     else:
-                        # Display tentative recognition
                         display_face_info(frame, x1, y1, person_name, recognition_confidence, status, False)
                 else:
                     cv2.putText(frame, "Unknown", (x1, y1 - 10),
