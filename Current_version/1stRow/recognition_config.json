@@ -1,0 +1,23 @@
+{
+    "face_recognition": {
+        "min_confidence": 0.5,
+        "max_distance": 0.6,
+        "min_face_size": 50,
+        "consecutive_frames": 3,
+        "quality_threshold": 0.3,
+        "high_confidence_threshold": 0.6,
+        "history_length": 10,
+        "consistency_check_frames": 5
+    },
+    "display": {
+        "show_confidence": true,
+        "show_distance": true,
+        "show_quality": false,
+        "tentative_recognition": true
+    },
+    "logging": {
+        "log_level": "INFO",
+        "log_errors": true,
+        "log_recognition": false
+    }
+} 
