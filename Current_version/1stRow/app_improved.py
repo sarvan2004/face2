@@ -98,14 +98,11 @@ face_recognition_history = {}
 frame_count = 0
 
 def mark_attendance(name, face_crop):
-    """Mark attendance IN or OUT for a recognized person"""
     print(f"DEBUG: Attempting to mark attendance for {name}")
     global cropped_faces_display
     current_time = datetime.now().strftime("%H:%M:%S")
     now = datetime.now()
     today_date = now.strftime("%Y-%m-%d")
-
-    # Ensure attendance file has correct columns if it does not exist or is malformed
     required_columns = ["Name", "Date", "Time", "Status"]
     recreate_file = False
     if not os.path.exists(attendance_file):
@@ -128,8 +125,14 @@ def mark_attendance(name, face_crop):
     today_df = df[df["Date"] == today_date]
     person_entries = today_df[today_df["Name"] == name]
 
-    # If never marked in today, or last status is 'out', mark as 'in'
-    if person_entries.empty or (person_entries["Status"] == "out").all():
+    print("DEBUG: person_entries:")
+    print(person_entries)
+    if isinstance(person_entries, pd.DataFrame) and not person_entries.empty:
+        print("DEBUG: Last entry for today:")
+        print(person_entries.iloc[-1])
+
+    # If no entries today or last status is 'out', mark as 'in'
+    if isinstance(person_entries, pd.DataFrame) and (person_entries.empty or (person_entries.iloc[-1]["Status"] == "out")):
         new_entry = pd.DataFrame({
             "Name": [name],
             "Date": [today_date],
@@ -144,14 +147,12 @@ def mark_attendance(name, face_crop):
         }
         return True
 
-    # If already marked in, check if 10 seconds (for quick test) has passed since last 'in'
-    in_entries = person_entries[person_entries["Status"] == "in"]
-    if not in_entries.empty:
-        last_in = in_entries.iloc[-1]
+    # If last status is 'in', check if 1 hour has passed since last 'in'
+    if isinstance(person_entries, pd.DataFrame) and not person_entries.empty and person_entries.iloc[-1]["Status"] == "in":
+        last_in = person_entries.iloc[-1]
         last_in_time = datetime.strptime(f"{last_in['Date']} {last_in['Time']}", "%Y-%m-%d %H:%M:%S")
         print(f"DEBUG: last_in_time={last_in_time}, now={now}, diff={(now - last_in_time)}")
-        # For production, use: timedelta(hours=1)
-        if (now - last_in_time) >= timedelta(seconds=10):  # <-- Change to hours=1 for real use
+        if (now - last_in_time) >= timedelta(hours=1):
             new_entry = pd.DataFrame({
                 "Name": [name],
                 "Date": [today_date],
@@ -364,8 +365,32 @@ while cap.isOpened():
                     # Check for consistent recognition
                     consistent_name, consistent_confidence = get_consistent_recognition(face_id_key)
                     
-                    # For testing: mark attendance for any match (tentative or confident)
-                    mark_attendance(person_name, face_crop)
+                    # Only close the camera if attendance_marked is True
+                    try:
+                        attendance_marked = mark_attendance(person_name, face_crop)
+                        if attendance_marked:
+                            print("Attendance marked, closing camera in 7 seconds.")
+                            cv2.putText(frame, "Attendance marked", (x1, y1 - 40),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                            cv2.imshow("Improved Face Recognition", frame)
+                            cv2.waitKey(7000)  # Show message for 7 seconds
+                            cap.release()
+                            cv2.destroyAllWindows()
+                            exit(0)
+                        else:
+                            # Show message and close camera if attendance is already marked
+                            print("Attendance already marked, closing camera in 7 seconds.")
+                            cv2.putText(frame, "Attendance already marked", (x1, y1 - 40),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                            cv2.imshow("Improved Face Recognition", frame)
+                            cv2.waitKey(7000)  # Show message for 7 seconds
+                            cap.release()
+                            cv2.destroyAllWindows()
+                            exit(0)
+                    except Exception as e:
+                        print(f"ERROR in mark_attendance: {e}")
+                        cv2.putText(frame, "Error", (x1, y1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                     # You can comment out the above line for production use
                     if consistent_name and consistent_confidence > face_config["high_confidence_threshold"]:
                         if face_id_key not in face_embeddings_cache:
