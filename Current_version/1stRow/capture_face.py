@@ -3,6 +3,7 @@ import os
 import numpy as np
 from ultralytics import YOLO
 import time
+import sys
 
 def create_known_faces_dir():
     """Create known_faces directory if it doesn't exist"""
@@ -22,10 +23,10 @@ def capture_face():
     # Open webcam
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("❌ Error: Could not open webcam")
+        print(" Error: Could not open webcam")
         return
     
-    print("📸 Face Capture Tool")
+    print(" Face Capture Tool")
     print("=" * 40)
     print("Instructions:")
     print("1. Position your face in the center of the frame")
@@ -41,7 +42,7 @@ def capture_face():
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("❌ Error reading from webcam")
+            print(" Error reading from webcam")
             break
         
         # Create a copy for display
@@ -86,7 +87,7 @@ def capture_face():
         key = cv2.waitKey(1) & 0xFF
         
         if key == ord('q'):
-            print("❌ Cancelled face capture")
+            print(" Cancelled face capture")
             break
         elif key == ord('c'):
             if face_detected:
@@ -111,10 +112,10 @@ def capture_face():
                         break
                 
                 if face_captured:
-                    print("✅ Face captured successfully!")
+                    print(" Face captured successfully!")
                     break
             else:
-                print("❌ No face detected. Please position your face in the frame.")
+                print(" No face detected. Please position your face in the frame.")
     
     cap.release()
     cv2.destroyAllWindows()
@@ -128,7 +129,7 @@ def save_face(face_image, person_name):
     """Save the captured face to the known_faces folder"""
     
     if face_image is None:
-        print("❌ No face image to save")
+        print(" No face image to save")
         return False
     
     # Clean the person name (remove spaces, special characters)
@@ -141,55 +142,54 @@ def save_face(face_image, person_name):
     
     # Check if file already exists
     if os.path.exists(filepath):
-        print(f"⚠️  Warning: {filename} already exists")
+        print(f"  Warning: {filename} already exists")
         response = input("Do you want to overwrite it? (y/n): ").lower()
         if response != 'y':
-            print("❌ Face not saved")
+            print(" Face not saved")
             return False
     
     # Save the face image
     try:
         cv2.imwrite(filepath, face_image)
-        print(f"✅ Face saved as: {filename}")
-        print(f"📁 Location: {os.path.abspath(filepath)}")
+        print(f" Face saved as: {filename}")
+        print(f" Location: {os.path.abspath(filepath)}")
         return True
     except Exception as e:
-        print(f"❌ Error saving face: {e}")
+        print(f"Error saving face: {e}")
         return False
 
 def main():
     """Main function to run the face capture tool"""
-    
-    print("🎯 Face Recognition - Face Capture Tool")
-    print("=" * 50)
-    
-    # Get person name
-    person_name = input("Enter the person's name: ").strip()
-    if not person_name:
-        print("❌ Name cannot be empty")
-        return
-    
-    print(f"\n📸 Capturing face for: {person_name}")
+    import sys
+    # Check if name is provided as a command-line argument
+    if len(sys.argv) > 1:
+        person_name = sys.argv[1].strip()
+        if not person_name:
+            print(" Name cannot be empty")
+            return
+    else:
+        person_name = input("Enter the person's name: ").strip()
+        if not person_name:
+            print(" Name cannot be empty")
+            return
+    print(f"\n Capturing face for: {person_name}")
     print("Position your face in the camera and press 'c' to capture")
-    
     # Capture face
     face_image = capture_face()
-    
     if face_image is not None:
         # Save the face
         if save_face(face_image, person_name):
-            print("\n🎉 Face added successfully!")
+            print("\n Face added successfully!")
             print("You can now run the face recognition system to test it.")
-            
             # Show preview of saved face
-            print("\n📋 Preview of saved face:")
+            print("\n Preview of saved face:")
             cv2.imshow("Captured Face", face_image)
             cv2.waitKey(3000)  # Show for 3 seconds
             cv2.destroyAllWindows()
         else:
-            print("❌ Failed to save face")
+            print(" Failed to save face")
     else:
-        print("❌ No face was captured")
+        print(" No face was captured")
 
 if __name__ == "__main__":
     main() 

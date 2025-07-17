@@ -7,3 +7,7 @@ dlib
 flask
 matplotlib
 jupyter
+ultralytics
+deepface
+joblib
+seaborn

@@ -139,4 +139,4 @@ Logs are saved to `face_recognition.log`
 5. **Ensure good lighting** for consistent results
 6. **Monitor logs** for system performance
 
-The improved system should significantly reduce misidentification while maintaining good recognition rates. 
+The improved system should significantly reduce misidentification while maintaining good recognition rates.
